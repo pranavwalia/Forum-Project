@@ -1,24 +1,63 @@
-;; The first three lines of this file were inserted by DrRacket. They record metadata
-;; about the language level of this file in a form that our tools can easily process.
-#reader(lib "htdp-intermediate-reader.ss" "lang")((modname Assignment8A-Forum) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
 (require 2htdp/image)
 (require 2htdp/universe)
 (require racket/string)
 
-(define scene (empty-scene 800 800))
+(define scene (empty-scene 1000 800))
 
-; A History is a List of Strings
-; INTERPRETATION: the prior posts received from the server.
-;A history is one of:
+;; A Reply is a (make-reply String String)
+(define-struct reply [author message])
+; INTERPRETATION: a struct containing the author and the contents
+(define reply1 (make-reply "Alex-Jones" "Get Behind me Satan"))
+(define reply2 (make-reply "Hillary" "What Happened?"))
+(define reply3 (make-reply "Bush" "Visit my library"))
+
+;reply-temp
+;Reply -> ???
+#;(define (reply-temp r)
+    (...(reply-author r)...(reply-message r)...))
+
+;;A list of replies (LoR) is one of:
+;'()
+;(cons reply LoR)
+(define lor1 (list reply1 reply2 reply3))
+(define lor2 '())
+(define lor3 (list reply2 reply3 reply1))
+
+;LoR-temp
+;LoR -> ???
+#;(define (lor-temp l)
+    (cond
+      [(empty? l)...]
+      [(cons? l)...(reply-temp (first l))...(rest l)]))
+
+; A Post is a (list Number (make-post String String (list-of Reply))
+(define-struct post [author message replies])
+; INTERPRETATION: The ID# of a post, as well as a struct containing the author, the message and a
+;list of all replies contained in the post?
+(define post1 (list 0 (make-post "Pranav" "Evening!" lor1)))
+(define post2 (list 0 (make-post "Jason" "I am Jason" lor1)))
+(define post3 (list 0 (make-post "Bob" "I am Bob" lor2)))
+
+;post-temp
+;Post -> ???
+#;(define (post-temp p)
+    (...(first p)...(post-author (second p))...(post-message (second p))...
+        (lor-temp (post-replies (second p)))))
+
+
+; A History is a [List-of Post]
+; INTERPRETATION: the history of top-level posts seen so far.
+; A History is a List of Posts
 ; - '()
-; - (cons String History)                                 
-(define history1 (cons "hello" (cons "jerry" (cons "I love fundies" (cons "sometimes" '())))))
+; - (cons Post History)
+(define history1 (list post1 post2 post3 (list "ERROR" "Invalid Input")))
+(define history2 '())
 
 ;History-temp
 #;(define (history-temp h)
     (cond
       [(empty? h)...]
-      [(cons? h)...(first h)...(history-temp rest h)...]))
+      [(cons? h)...(post-temp (first h))...(history-temp rest h)...]))
  
 ; A Edit is a String
 ; INTERPRETATION: the contents of the post the user is currently
@@ -28,8 +67,8 @@
 ; A Search is a String 
 ; INTERPRETATION: the current search term the user is looking for
 (define search1 "hel")
-(define search2 "")
-(define search3 "i")
+(define search2 "a")
+(define search3 "I")
 
 (define-struct editview [edit history search])
 ; A EditviewPosts is a (make-editview Edit History Search)
@@ -67,10 +106,67 @@
       [(editview? ws)...(editview-edit ws)...(editview-history ws)...(editview-search ws)...]
       [(searchpost? ws)...(search-edit ws)...(search-history ws)...(search-search ws)]...))
 
+
+; A ClientMsg is one of
+; - "CATCHUP"
+; - (list "POST" String)
+; - (list "REPLY" Natural String)
+; INTERPRETATION:
+; – Sending the message "CATCHUP" tells the server you would like it
+;    to send you all the prior posts the server has received.  You are only
+;    allowed to ask the server for catch-up messages once; a second request
+;    will result in an error.
+; – Sending the message (list "POST" String) – i.e., a two-item
+;    list whose first item is the string "POST", and whose second item is a
+;    String – indicates you are writing a new post, where the string provides
+;    the text of the post
+; – Sending the message (list "REPLY" Natural String) indicates that
+;    you are replying to an existing post (Note: you cannot reply to a reply).
+;    The number indicates the post's id, and the string is the text of the post.
+(define clientmsg0 "CATCHUP")
+(define clientmsg1 (list "POST" "Hello"))
+(define clientmsg2 (list "REPLY" 0 "Hey There"))
+
+#;(define (clientmsg-temp c)
+    (cond
+      [(and (string? c) (string=? c "CATCHUP"))...] 
+      [(string=? (first c) "POST")...(second c)]
+      [(string=? (first c) "REPLY")...(second c)...(third c)...]))
+
 ; A SentWorld is one of
 ; - a World
-; - a (make-package World Edit)
-(define Sentworld1 (make-package world0 (editview-edit world0)))
+; - a (make-package ClientMsg)
+(define sentworld1 (make-package world0 clientmsg0))
+(define sentworld2 (make-package world0 clientmsg1))
+(define sentworld3 (make-package world0 clientmsg2))
+
+
+; A ServerMsg is one of:
+; - (list "POST" Natural String String)
+; - (list "REPLY" Natural String String)
+; - (list "ERROR" String)
+; INTERPRETATION:
+; – Receiving a "POST" message means there is a new post with the given ID#,
+;    author, and contents.  This is the same
+;    information as you've been receiving via "id:author:contents", except
+;    that the data is properly broken apart for you, instead of mashed into
+;    one string.
+; – Receiving a "REPLY" message there is a new reply containing the ID# of
+;    the parent post (that this is a reply to), the author of the reply as 
+;    the next string, and whose content is the final string.
+; – Receiving an "ERROR" message means the client made a mistake, with the
+;    error message given as the string.
+(define servermsg0 (list "POST" 3 "ahluwalia.pr" "Globalism"))
+(define servermsg1 (list "POST" 3 "ahluwalia.pr" "AlexJones"))
+(define servermsg2 (list "ERROR" "Invalid Input"))
+(define servermsg3 (list "REPLY" 5 "Nice Meme bro"))
+
+#;(define (servermsg-temp s)
+    (cond
+      [(string=? (first s) "POST")...(second s)...(third s)...(fourth s)]
+      [(string=? (first s) "REPLY")...(second s)...(third s)...(fourth s)...]
+      [(string=? (first s) "ERROR")...(second s)...]))
+
 
 ;;simple-forum
 ;World -> World
@@ -80,7 +176,7 @@
   (big-bang world
             [name "ahluwalia.pr:0893"]
             [register "dictionary.ccs.neu.edu"]
-            [port 10003]
+            [port 10007]
             [on-key select-world]
             [to-draw render]
             [on-receive recieve-world]))
@@ -136,7 +232,7 @@
 (check-expect (type-world (make-searchpost edit1 history1 "hello") "\b")
               (make-searchpost edit1 history1 "hell"))
 (check-expect (type-world (make-editview "hello" history1 search1) "\r")
-              (make-package (make-editview "" history1 search1) "hello"))
+              (make-package (make-editview "" history1 search1) (list "POST" "hello")))
 (check-expect (type-world (make-editview "hello" history1 search1) "shift")
               (make-editview "hello" history1 search1))
 (check-expect (type-world (make-searchpost edit1 history1 "hello") "shift")
@@ -149,12 +245,33 @@
 ;(backspace ws)
 (define (keyhandle ws key)
   (cond [(key=? "\b" key) (backspace ws)]
-        [(key=? "\r" key) (if (editview? ws) (send-world ws) ws)]))
+        [(key=? "\r" key) (if (editview? ws) (world-to-client ws) ws)]))
 
 (check-expect (keyhandle (make-searchpost edit1 history1 "hello") "\b")
               (make-searchpost edit1 history1 "hell"))
+(check-expect (keyhandle (make-searchpost edit1 history1 "hello") "\b")
+              (make-searchpost edit1 history1 "hell"))
 (check-expect (keyhandle (make-editview "hello" history1 search1) "\r")
-              (make-package (make-editview "" history1 search1) "hello"))
+              (make-package (make-editview "" history1 search1)
+                            (list "POST" "hello")))
+(check-expect (keyhandle (make-searchpost edit1 history1 "hello") "\r")
+              (make-searchpost edit1 history1 "hello"))
+                         
+
+;;World-to-client
+;Converts an EditviewPost to a ClientMsg. and calls the send-world function
+; EditviewPost -> ClientMsg
+(define (world-to-client ws)
+  (cond
+    [(string=? (editview-edit ws) "CATCHUP") (send-world ws "CATCHUP")]
+    [#false (send-world ws (list "REPLY" "Natural" (editview-edit ws)))];Note: this is set to false
+    ;since there are no features that allow us to make a reply in this implementation.
+    [else (send-world ws (list "POST" (editview-edit ws)))]))
+
+(check-expect (world-to-client (make-editview "CATCHUP" history1 search1))
+              (send-world (make-editview "CATCHUP" history1 search1) "CATCHUP"))
+(check-expect (world-to-client (make-editview "HELLOOOOO" history1 search1))
+              (send-world (make-editview "HELLOOOOO" history1 search1) (list "POST" "HELLOOOOO")))
 
 ;type-world-helper
 ;Prevents "shift" "cntrl" and longer keyevents from being displayed
@@ -208,62 +325,103 @@
 
 
 ;;send-world
-;Sends the given world state to the server
-;EditViewPost -> SentWorld
-(define (send-world ws)
-  (make-package (make-editview "" (editview-history ws) (editview-search ws)) (editview-edit ws)))
-  
-(check-expect (send-world (make-editview "hello" history1 search1))
-              (make-package (make-editview "" history1 search1) "hello"))
+;Sends the given ClientMSG to the server
+;EditviewPost ClientMSG -> SentWorld
+(define (send-world ws c)
+  (cond
+    [(and (string? c) (string=? c "CATCHUP"))
+     (make-package (make-editview "" (editview-history ws) (editview-search ws)) c)]
+                                                            
+    [(string=? (first c) "REPLY") (make-package (make-editview
+                                                 "" (editview-history ws) (editview-search ws)) c)]
+    [(string=? (first c) "POST") (make-package (make-editview
+                                                "" (editview-history ws) (editview-search ws)) c)]))
+;I could consolidate post and reply conditions but I want to stick to my template
+         
+(check-expect (send-world world0 clientmsg0)
+              (make-package (make-editview "" history1 search1) clientmsg0))
+(check-expect (send-world world0 clientmsg1 )
+              (make-package (make-editview "" history1 search1) clientmsg1))
+(check-expect (send-world world0 clientmsg2)
+              (make-package (make-editview "" history1 search1) clientmsg2))
   
 ;;recieve-world
-; World String -> World
-;Takes the world recieved from the server as well as the string recieved and updates the History
+; World ServerMSG -> World
+;Takes the world recieved from the server as well as the ServerMSG recieved and updates the History
 ;component of the world. Makes sure that messages are recieved while in search mode.
+(define (recieve-world ws sm) 
+  (local (
+          (define (write-to-history ws sm)
+            (cond
+              [(editview? ws) (if (and (string? (first sm)) (string-prefix? (first sm) "ERROR"))
+                                  (make-editview (editview-edit ws)
+                                                 (cons sm (editview-history ws))
+                                                 (editview-search ws))
+                                  (make-editview (editview-edit ws) (cons sm (editview-history ws))
+                                                 (editview-search ws)))]
+              [(searchpost? ws) (if (and (string? (first sm)) (string-prefix? (second sm) "ERROR"))
+                                    (make-searchpost (searchpost-edit ws)
+                                                     (cons sm (searchpost-history ws))
+                                                     (searchpost-search ws))
+                                    (make-searchpost (searchpost-edit ws)
+                                                     (cons sm (searchpost-history ws))
+                                                     (searchpost-search ws)))]))
+          (define (sm-to-post sm)
+            (cond
+              [(string=? (first sm) "POST")
+               (list (second sm) (make-post (third sm) (fourth sm) '()))]
+              [(string=? (first sm) "REPLY") null]
+              ;;Told to not impliment this yet in assignment
+              [(string=? (first sm) "ERROR") sm])))
+    (write-to-history ws (sm-to-post sm))))
+  
 
-(define (recieve-world ws st)
-  (cond
-    [(editview? ws) (if (string-prefix? st "ERROR")
-                        (make-editview (editview-edit ws) (cons "Invalid Input" (editview-history ws))
-                                       (editview-search ws))
-                        (make-editview (editview-edit ws) (cons st (editview-history ws))
-                                       (editview-search ws)))]
-    [(searchpost? ws) (if (string-prefix? st "ERROR")
-                          (make-searchpost (searchpost-edit ws) (cons "Invalid Input"
-                                                                      (searchpost-history ws))
-                                           (searchpost-search ws))
-                          (make-searchpost (searchpost-edit ws) (cons st (searchpost-history ws))
-                                           (searchpost-search ws)))])) 
-
-(check-expect (recieve-world world0 "Globalism")
-              (make-editview (editview-edit world0) (cons "Globalism" history1) search1))
-(check-expect (recieve-world searchpost1 "Globalism")
-              (make-searchpost edit1 (cons "Globalism" history1) search1))
-(check-expect (recieve-world editview1 "ERROR")
-              (make-editview edit1 (cons "Invalid Input" history1) search1))
-(check-expect (recieve-world searchpost1 "ERROR")
-              (make-searchpost edit1 (cons "Invalid Input" history1) search1))
+(check-expect (recieve-world world0 servermsg0)
+              (make-editview
+               edit1 (cons (list 3 (make-post "ahluwalia.pr" "Globalism" '()))
+                           (editview-history world0)) search1))
+(check-expect (recieve-world searchpost1 servermsg0)
+              (make-searchpost
+               edit1 (cons (list 3 (make-post "ahluwalia.pr" "Globalism" '()))
+                           (editview-history world0)) search1))
+(check-expect (recieve-world world0 servermsg1)
+              (make-editview edit1 (cons (list 3 (make-post "ahluwalia.pr" "AlexJones" '()))
+                                         (editview-history world0)) search1))
+(check-expect (recieve-world editview1 (list "ERROR" "Invalid Input"))
+              (make-editview edit1 (cons (list "ERROR" "Invalid Input") history1) search1))
+(check-expect (recieve-world searchpost1 (list "ERROR" "Invalid Input"))
+              (make-searchpost edit1 (cons (list "ERROR" "Invalid Input") history1) search1))
 ;;render
 ;;World -> Image
 ;Renders the string being typed as well along with the history. Displays the correct information in
 ;SearchPosts mode
+          
 (define (render ws)
   (cond
     [(editview? ws) (above/align "right" (text "Edit View" 24 "green")
-                                 (above/align "left" (text (editview-edit ws) 16 "black")
-                                              (viewclient ws)))]
+                                 (above/align "left"
+                                              (text (editview-edit ws) 16 "black") (viewclient ws)))]
+                                 
+                                 
+                                              
     [(searchpost? ws) (above/align "right" (text "Search View" 24 "green")
-                                   (above/align "left" (text (searchpost-search ws) 16 "black")
-                                                (viewclient ws)))]))
+                                   (above/align
+                                    "left"
+                                    (text (searchpost-search ws) 16 "black") (viewclient ws)))]))
+                                   
 
 (check-expect (render editview1)
               (above/align "right" (text "Edit View" 24 "green")
                            (above/align "left" (text (editview-edit editview1) 16 "black")
-                                        (viewclient editview1))))
+                                        (viewclient editview1))))                                                                              
 (check-expect (render searchpost1)
               (above/align "right" (text "Search View" 24 "green")
                            (above/align "left" (text (searchpost-search searchpost1) 16 "black")
                                         (viewclient searchpost1))))
+                           
+                           
+                                        
+                                       
 
 ;;viewclient
 ;World -> Image
@@ -276,32 +434,64 @@
     [(searchpost? ws) (render-edit-history (search-post ws (searchpost-history ws)))]))
   
 
-(check-expect (viewclient editview1) (above/align "left"
-                                                  (text "hello" 16 "black")
-                                                  (text "jerry" 16 "black")
-                                                  (text "I love fundies" 16 "black")
-                                                  (text "sometimes" 16 "black") scene))
-(check-expect (viewclient searchpost1) (above/align "left"
-                                                    (text "hello" 16 "black") scene))
+(check-expect (viewclient editview1)
+              (overlay/align "left" "top" (above/align "left"
+                                                       (above/align "left"
+                                                                    (text "0:Pranav: Evening!" 16
+                                                                          "black")
+                                                                    (text "0:Jason: I am Jason" 16
+                                                                          "black")
+                                                                    (text "0:Bob: I am Bob" 16
+                                                                          "black")
+                                                                    (text "Invalid Input" 16
+                                                                          "black"))
+                                                       (text "~" 16 "black")) scene))  
+(check-expect (viewclient searchpost3)
+              (overlay/align "left" "top" (above/align "left"
+                                                       (above/align "left"
+                                                                    
+                                                                    (text "0:Jason: I am Jason" 16
+                                                                          "black")
+                                                                    (text "0:Bob: I am Bob" 16
+                                                                          "black"))
+                                                       (text "~" 16 "black")) scene))
+
 
 ;;render-edit-history
 ;History -> Image
 ;Generates in image of all the items in History
 (define (render-edit-history his)
   (local
-    ((define (gen-image st)
-       (text st 16 "black"))
-     (define (place-image h sc)
-       (above/align "left" h sc)))
-    ;; - IN -
-    (foldr place-image scene (map gen-image his))))
+    ((define (gen-image sm)
+       (cond  
+         [(post? (second sm))
+          (text (string-append (number->string (first sm)) ":" (post-author (second sm)) ": "
+                               (post-message (second sm))) 16 "black")]
+         [(string=? (first sm) "ERROR") (text (second sm) 16 "black")])) 
+     ; Context: st = (list "POST" 5 "Pranav: " "hello" -> (text "5:Pranav: hello" 16 "black")
+     ; Context: st = (list "REPLY" 5 "Jim: " "Hi there!") -> (text "5: "Jim: Hi there!" 16 "black")
+     ; Context: st = (list "ERROR" "Not valid" -> (text "Not valid" 16 "black")
+     (define (place-image1 h sc)
+       (above/align "left" "bottom" h sc))
 
-(check-expect (render-edit-history '()) scene)
-(check-expect (render-edit-history history1) (above/align "left"
-                                                          (text "hello" 16 "black")
-                                                          (text "jerry" 16 "black")
-                                                          (text "I love fundies" 16 "black")
-                                                          (text "sometimes" 16 "black") scene))
+     (define (align-image i b)
+       (above/align "left" i b)));;Context: h = "hi", sc = scene -> (above/align "left"
+    ;(text "hi" 16 "black") sc)
+    
+    ;; - IN -
+    (overlay/align "left" "top"
+                   (foldr align-image (text "~" 16 "black") (map gen-image his)) scene)))
+
+(check-expect (render-edit-history '()) (overlay/align "left" "top" (text "~" 16 "black") scene))
+(check-expect (render-edit-history history1)
+              (overlay/align "left" "top"
+                             (above/align "left"
+                                          (above/align "left"
+                                                       (text "0:Pranav: Evening!" 16 "black")
+                                                       (text "0:Jason: I am Jason" 16 "black")
+                                                       (text "0:Bob: I am Bob" 16 "black")
+                                                       (text "Invalid Input" 16 "black"))
+                                          (text "~" 16 "black")) scene))
 
 ;;search-post
 ;SearchPost History -> History
@@ -311,15 +501,49 @@
   (local
     ((define search-bar (searchpost-search ws))
      (define (contains-search? st)
-       (if (string-contains? st search-bar) #true #false)))
+       (if (string-contains? (post-search st) search-bar) #true #false))
+     (define (post-search p)
+       (if (number? (first p)) (string-append (post-author (second p))
+                                              (post-message (second p))) "Error")))
+    ;Context: st = "hi" search-bar = "hi" -> (cons "hi" '())
     ;; - IN -
     (filter contains-search? his)))
  
 
-(check-expect (search-post searchpost1 history1) (cons "hello" '()))
-(check-expect (search-post searchpost2 history1)
-              (cons "hello" (cons "jerry" (cons "I love fundies" (cons "sometimes" '())))))
-(check-expect (search-post searchpost3 history1) (cons "I love fundies" (cons "sometimes" '())))
+(check-expect (search-post searchpost1 history1) '())
+(check-expect (search-post searchpost2 history1) 
+              (list
+               (list
+                0
+                (make-post
+                 "Pranav"
+                 "Evening!"
+                 (list
+                  (make-reply "Alex-Jones" "Get Behind me Satan")
+                  (make-reply "Hillary" "What Happened?")
+                  (make-reply "Bush" "Visit my library"))))
+               (list
+                0
+                (make-post
+                 "Jason"
+                 "I am Jason"
+                 (list
+                  (make-reply "Alex-Jones" "Get Behind me Satan")
+                  (make-reply "Hillary" "What Happened?")
+                  (make-reply "Bush" "Visit my library"))))
+               (list 0 (make-post "Bob" "I am Bob" '()))))
+(check-expect (search-post searchpost3 history1)
+              (list
+               (list
+                0
+                (make-post
+                 "Jason"
+                 "I am Jason"
+                 (list
+                  (make-reply "Alex-Jones" "Get Behind me Satan")
+                  (make-reply "Hillary" "What Happened?")
+                  (make-reply "Bush" "Visit my library"))))
+               (list 0 (make-post "Bob" "I am Bob" '()))))
 
 
               
